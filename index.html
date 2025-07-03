@@ -32,8 +32,15 @@
             max-height: 100%;
             object-fit: contain;
             border-radius: 0.5rem;
+            background-image:
+                linear-gradient(45deg, #374151 25%, transparent 25%), 
+                linear-gradient(-45deg, #374151 25%, transparent 25%),
+                linear-gradient(45deg, transparent 75%, #374151 75%),
+                linear-gradient(-45deg, transparent 75%, #374151 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
         }
-        #workspace.cropping, #workspace.lassoing, #workspace.focusing, #workspace.color-selecting { cursor: crosshair; }
+        #workspace.crop-selecting, #workspace.lasso-selecting, #workspace.focus-selecting, #workspace.color-select-selecting, #workspace.background-selecting { cursor: crosshair; }
         #workspace.pasting { cursor: copy; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #1f2937; }
@@ -44,12 +51,30 @@
             opacity: 0.5;
             cursor: not-allowed;
         }
-        #selected-color-preview {
+        #selected-color-preview, #background-color-preview {
             width: 100%;
             height: 30px;
             border-radius: 0.25rem;
             border: 2px solid #4b5563;
             background-color: #1f2937;
+        }
+        #new-background-color {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 40px;
+            background-color: transparent;
+            border: none;
+            cursor: pointer;
+        }
+        #new-background-color::-webkit-color-swatch {
+            border-radius: 0.25rem;
+            border: 2px solid #4b5563;
+        }
+        #new-background-color::-moz-color-swatch {
+            border-radius: 0.25rem;
+            border: 2px solid #4b5563;
         }
     </style>
 </head>
@@ -85,7 +110,7 @@
                  <!-- Verktyg -->
                 <div>
                     <h3 class="text-lg font-semibold mb-3 border-b border-gray-600 pb-2 flex items-center gap-2"><i data-lucide="wand-2" class="w-5 h-5 text-gray-400"></i>Verktyg</h3>
-                    <div class="grid grid-cols-4 gap-2">
+                    <div class="grid grid-cols-5 gap-2">
                         <button id="crop-tool-btn" title="Beskär" class="tool-button bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium p-3 rounded-lg flex items-center justify-center transition-colors duration-200">
                             <i data-lucide="crop" class="w-5 h-5"></i>
                         </button>
@@ -97,6 +122,9 @@
                         </button>
                          <button id="color-select-tool-btn" title="Färgval" class="tool-button bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium p-3 rounded-lg flex items-center justify-center transition-colors duration-200">
                            <i data-lucide="pipette" class="w-5 h-5"></i>
+                        </button>
+                        <button id="background-tool-btn" title="Bakgrund" class="tool-button bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium p-3 rounded-lg flex items-center justify-center transition-colors duration-200">
+                           <i data-lucide="eraser" class="w-5 h-5"></i>
                         </button>
                     </div>
                     <!-- Dynamiska verktygskontroller -->
@@ -156,12 +184,34 @@
                             </button>
                         </div>
                     </div>
+                    <div id="background-controls" class="hidden mt-4 p-3 bg-gray-700/50 rounded-lg space-y-4">
+                        <p class="text-sm text-center text-gray-300 mb-2">Klicka på bakgrundsfärgen</p>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">Vald färg</label>
+                            <div id="background-color-preview"></div>
+                        </div>
+                        <div>
+                            <label for="background-tolerance" class="block text-sm font-medium text-gray-300 mb-1">Tolerans</label>
+                            <input type="range" id="background-tolerance" min="0" max="150" value="30" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                        </div>
+                         <div id="background-actions" class="hidden flex-col gap-4">
+                             <button id="remove-background-btn" class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>Ta bort bakgrund
+                            </button>
+                            <div class="flex items-center gap-2">
+                                <input type="color" id="new-background-color" value="#ffffff">
+                                <button id="change-background-color-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2">
+                                    <i data-lucide="paintbrush" class="w-4 h-4"></i>Byt färg
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Justeringar -->
                 <div>
                     <h3 class="text-lg font-semibold mb-3 border-b border-gray-600 pb-2 flex items-center gap-2"><i data-lucide="sliders-horizontal" class="w-5 h-5 text-gray-400"></i>Justeringar</h3>
-                    <div class="space-y-4">
+                    <div id="filter-controls-container" class="space-y-4">
                         <div class="filter-control">
                             <label for="brightness" class="block text-sm font-medium text-gray-300 mb-1">Ljusstyrka</label>
                             <input type="range" id="brightness" min="-100" max="100" value="0" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
@@ -189,11 +239,17 @@
                 <div>
                     <h3 class="text-lg font-semibold mb-3 border-b border-gray-600 pb-2 flex items-center gap-2"><i data-lucide="settings-2" class="w-5 h-5 text-gray-400"></i>Åtgärder</h3>
                     <div class="grid grid-cols-2 gap-2">
-                        <button id="paste-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors duration-200" disabled>
+                         <button id="undo-btn" class="bg-gray-600 hover:bg-gray-500 text-white font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors duration-200" disabled>
+                            <i data-lucide="undo-2" class="w-4 h-4"></i>Ångra
+                        </button>
+                        <button id="redo-btn" class="bg-gray-600 hover:bg-gray-500 text-white font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors duration-200" disabled>
+                            <i data-lucide="redo-2" class="w-4 h-4"></i>Gör om
+                        </button>
+                        <button id="paste-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors duration-200 col-span-2" disabled>
                             <i data-lucide="clipboard-paste" class="w-4 h-4"></i>Klistra in
                         </button>
-                        <button id="reset-filters-btn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors duration-200">
-                            <i data-lucide="rotate-cw" class="w-4 h-4"></i>Återställ
+                        <button id="reset-filters-btn" class="bg-yellow-600 hover:bg-yellow-700 text-white font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors duration-200 col-span-2">
+                            <i data-lucide="rotate-cw" class="w-4 h-4"></i>Återställ Bild
                         </button>
                         <button id="download-btn" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors duration-200 col-span-2">
                             <i data-lucide="download" class="w-4 h-4"></i>Spara Bild
@@ -236,10 +292,12 @@
             const focusToolBtn = document.getElementById('focus-tool-btn');
             const lassoToolBtn = document.getElementById('lasso-tool-btn');
             const colorSelectToolBtn = document.getElementById('color-select-tool-btn');
+            const backgroundToolBtn = document.getElementById('background-tool-btn');
             const cropControls = document.getElementById('crop-controls');
             const focusControls = document.getElementById('focus-controls');
             const lassoControls = document.getElementById('lasso-controls');
             const colorSelectControls = document.getElementById('color-select-controls');
+            const backgroundControls = document.getElementById('background-controls');
             const applyCropBtn = document.getElementById('apply-crop-btn');
             const cancelCropBtn = document.getElementById('cancel-crop-btn');
             const copyLassoBtn = document.getElementById('copy-lasso-btn');
@@ -253,7 +311,15 @@
             const colorSelectActions = document.getElementById('color-select-actions');
             const applyColorSelectBtn = document.getElementById('apply-color-select-btn');
             const cancelColorSelectBtn = document.getElementById('cancel-color-select-btn');
+            const backgroundToleranceSlider = document.getElementById('background-tolerance');
+            const backgroundColorPreview = document.getElementById('background-color-preview');
+            const backgroundActions = document.getElementById('background-actions');
+            const removeBackgroundBtn = document.getElementById('remove-background-btn');
+            const newBackgroundColorInput = document.getElementById('new-background-color');
+            const changeBackgroundColorBtn = document.getElementById('change-background-color-btn');
             const pasteBtn = document.getElementById('paste-btn');
+            const undoBtn = document.getElementById('undo-btn');
+            const redoBtn = document.getElementById('redo-btn');
             const resetBtn = document.getElementById('reset-filters-btn');
             const downloadBtn = document.getElementById('download-btn');
 
@@ -261,7 +327,7 @@
             let appState = {
                 images: [],
                 activeImageId: null,
-                activeTool: null, // 'crop', 'focus', 'lasso', 'pasting', 'color-select'
+                activeTool: null, 
                 cropBox: null,
                 isCropping: false,
                 lassoPath: [],
@@ -274,22 +340,26 @@
             // ---- HÄNDELSEHANTERARE ----
             fileInput.addEventListener('change', handleImageUpload);
             
-            document.querySelectorAll('.filter-control input').forEach(input => {
+            document.querySelectorAll('#filter-controls-container input').forEach(input => {
                 input.addEventListener('input', () => {
                     updateFiltersFromUI();
                     redrawActiveCanvas();
                 });
+                input.addEventListener('change', () => saveState()); // Spara historik när man släpper reglaget
             });
 
             resetBtn.addEventListener('click', resetActiveImage);
             downloadBtn.addEventListener('click', downloadActiveImage);
             pasteBtn.addEventListener('click', enterPastingMode);
+            undoBtn.addEventListener('click', undo);
+            redoBtn.addEventListener('click', redo);
 
             // Verktygsknappar
             cropToolBtn.addEventListener('click', () => toggleTool('crop'));
             focusToolBtn.addEventListener('click', () => toggleTool('focus'));
             lassoToolBtn.addEventListener('click', () => toggleTool('lasso'));
             colorSelectToolBtn.addEventListener('click', () => toggleTool('color-select'));
+            backgroundToolBtn.addEventListener('click', () => toggleTool('background')); // [FIX]
 
             // Verktygskontroller
             applyCropBtn.addEventListener('click', applyCrop);
@@ -302,6 +372,9 @@
             colorToleranceSlider.addEventListener('input', () => redrawActiveCanvas());
             applyColorSelectBtn.addEventListener('click', applyColorSelect);
             cancelColorSelectBtn.addEventListener('click', cancelColorSelect);
+            backgroundToleranceSlider.addEventListener('input', () => redrawActiveCanvas());
+            removeBackgroundBtn.addEventListener('click', () => applyBackgroundChange(true));
+            changeBackgroundColorBtn.addEventListener('click', () => applyBackgroundChange(false));
             
             // Arbetsyta
             workspace.addEventListener('mousedown', handleWorkspaceMouseDown);
@@ -328,7 +401,9 @@
                                 currentElement: img, filters: getDefaultFilters(),
                                 focus: { path: [], blur: 5 }, 
                                 colorSelect: { color: null, tolerance: 30 },
+                                background: { color: null, tolerance: 30 },
                                 canvas: null,
+                                history: [], historyIndex: -1,
                             };
                             appState.images.push(newImage);
                             createCanvasForImage(newImage);
@@ -347,15 +422,16 @@
                 canvas.classList.add('hidden');
                 workspace.appendChild(canvas);
                 imageObject.canvas = canvas;
-                updateCanvas(imageObject);
+                updateCanvas(imageObject, true); // Spara initial state
             }
 
-            function updateCanvas(imageObject) {
+            function updateCanvas(imageObject, saveToHistory = false) {
                 const img = imageObject.currentElement;
                 const canvas = imageObject.canvas;
                 canvas.width = img.width;
                 canvas.height = img.height;
                 redrawCanvas(imageObject);
+                if(saveToHistory) saveState(imageObject);
             }
 
             function switchTab(imageId) {
@@ -384,9 +460,10 @@
                 activeImage.filters = getDefaultFilters();
                 activeImage.focus = { path: [], blur: 5 };
                 activeImage.colorSelect = { color: null, tolerance: 30 };
+                activeImage.background = { color: null, tolerance: 30 };
                 activeImage.currentElement = activeImage.originalElement;
                 if (appState.activeTool) toggleTool(appState.activeTool);
-                updateCanvas(activeImage);
+                updateCanvas(activeImage, true);
                 render();
             }
 
@@ -409,6 +486,65 @@
             
             function getDefaultFilters() {
                 return { brightness: 100, contrast: 100, saturate: 100, grayscale: 0, sepia: 0 };
+            }
+
+            // ---- HISTORIK ----
+            function saveState(imageObject = getActiveImage()) {
+                if (!imageObject) return;
+                const history = imageObject.history;
+                const newHistoryState = imageObject.currentElement.src;
+
+                if (imageObject.historyIndex > -1 && history[imageObject.historyIndex] === newHistoryState) {
+                    return; // Undvik att spara duplicerade states
+                }
+
+                if (imageObject.historyIndex < history.length - 1) {
+                    imageObject.history = history.slice(0, imageObject.historyIndex + 1);
+                }
+
+                imageObject.history.push(newHistoryState);
+                imageObject.historyIndex++;
+
+                if (imageObject.history.length > 10) {
+                    imageObject.history.shift();
+                    imageObject.historyIndex--;
+                }
+                updateHistoryButtons();
+            }
+
+            function undo() {
+                const activeImage = getActiveImage();
+                if (!activeImage || activeImage.historyIndex <= 0) return;
+                activeImage.historyIndex--;
+                restoreStateFromHistory(activeImage);
+            }
+
+            function redo() {
+                const activeImage = getActiveImage();
+                if (!activeImage || activeImage.historyIndex >= activeImage.history.length - 1) return;
+                activeImage.historyIndex++;
+                restoreStateFromHistory(activeImage);
+            }
+
+            function restoreStateFromHistory(imageObject) {
+                const img = new Image();
+                img.onload = () => {
+                    imageObject.currentElement = img;
+                    updateCanvas(imageObject);
+                    updateHistoryButtons();
+                };
+                img.src = imageObject.history[imageObject.historyIndex];
+            }
+
+            function updateHistoryButtons() {
+                const activeImage = getActiveImage();
+                if (!activeImage) {
+                    undoBtn.disabled = true;
+                    redoBtn.disabled = true;
+                    return;
+                }
+                undoBtn.disabled = activeImage.historyIndex <= 0;
+                redoBtn.disabled = activeImage.historyIndex >= activeImage.history.length - 1;
             }
 
             // ---- RITNINGSFUNKTIONER ----
@@ -435,6 +571,8 @@
                     drawFocusPreview(ctx, imageObject);
                 } else if (appState.activeTool === 'color-select' && imageObject.colorSelect.color) {
                     drawColorSelect(ctx, imageObject, colorToleranceSlider.valueAsNumber);
+                } else if (appState.activeTool === 'background' && imageObject.background.color) {
+                    drawBackgroundPreview(ctx, imageObject);
                 } else {
                     drawCanvasContent(imageObject, ctx);
                 }
@@ -468,7 +606,7 @@
                     if(btn) btn.classList.remove('active');
                     const controls = document.getElementById(`${appState.activeTool}-controls`);
                     if(controls) controls.classList.add('hidden');
-                    workspace.classList.remove('cropping', 'lassoing', 'focusing', 'pasting', 'color-selecting');
+                    workspace.classList.remove('crop-selecting', 'lasso-selecting', 'focus-selecting', 'pasting', 'color-select-selecting', 'background-selecting');
                     appState.cropBox = null;
                     appState.lassoPath = [];
                     appState.isDrawingFocus = false;
@@ -477,6 +615,7 @@
                     if(activeImage) {
                         activeImage.focus.path = [];
                         activeImage.colorSelect.color = null;
+                        activeImage.background.color = null;
                     }
                 }
                 
@@ -489,12 +628,12 @@
                     const controls = document.getElementById(`${toolName}-controls`);
                     if(controls) {
                         controls.classList.remove('hidden');
-                        if(toolName === 'lasso' || (toolName === 'focus' && !appState.isDrawingFocus) || (toolName === 'color-select' && !getActiveImage()?.colorSelect.color)) {
+                        if(toolName === 'lasso' || (toolName === 'focus' && !appState.isDrawingFocus) || (toolName === 'color-select' && !getActiveImage()?.colorSelect.color) || (toolName === 'background' && !getActiveImage()?.background.color)) {
                             controls.classList.add('hidden');
                         }
-                        if(toolName === 'focus' || toolName === 'color-select') controls.classList.remove('hidden');
+                        if(toolName === 'focus' || toolName === 'color-select' || toolName === 'background') controls.classList.remove('hidden');
                     }
-                    workspace.classList.add(`${toolName}ing`);
+                    workspace.classList.add(`${toolName}-selecting`);
                 }
                 redrawActiveCanvas();
             }
@@ -567,26 +706,17 @@
                     selectedColorPreview.style.backgroundColor = `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
                     colorSelectActions.style.display = 'grid';
                     redrawActiveCanvas();
+                } else if (appState.activeTool === 'background') {
+                    const ctx = activeImage.canvas.getContext('2d');
+                    const pixel = ctx.getImageData(pos.x, pos.y, 1, 1).data;
+                    activeImage.background.color = [pixel[0], pixel[1], pixel[2]];
+                    backgroundColorPreview.style.backgroundColor = `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+                    backgroundActions.classList.remove('hidden');
+                    redrawActiveCanvas();
                 }
             }
             
-            // ---- BESKÄRNING ----
-            function drawCropBox(ctx) {
-                const box = appState.cropBox;
-                if (!box) return;
-                const x = Math.min(box.startX, box.endX), y = Math.min(box.startY, box.endY);
-                const width = Math.abs(box.startX - box.endX), height = Math.abs(box.startY - box.endY);
-                ctx.save();
-                ctx.beginPath();
-                ctx.rect(0, 0, ctx.canvas.width, ctx.canvas.height);
-                ctx.rect(x, y, width, height);
-                ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
-                ctx.fill('evenodd');
-                ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(x, y, width, height);
-                ctx.restore();
-            }
+            // ---- VERKTYGSIMPLEMENTATIONER ----
 
             function applyCrop() {
                 const activeImage = getActiveImage();
@@ -605,14 +735,14 @@
                     activeImage.currentElement = newImageElement;
                     activeImage.focus.path = [];
                     activeImage.colorSelect.color = null;
+                    activeImage.background.color = null;
                     toggleTool('crop');
-                    updateCanvas(activeImage);
+                    updateCanvas(activeImage, true);
                     render();
                 };
                 newImageElement.src = tempCanvas.toDataURL();
             }
 
-            // ---- FOKUS ----
             function drawFocus(ctx, imageObject, blurAmount) {
                 ctx.save();
                 ctx.filter = `blur(${blurAmount}px) ${buildFilterString(imageObject.filters)}`;
@@ -644,6 +774,7 @@
                 newImageElement.onload = () => {
                     activeImage.currentElement = newImageElement;
                     cancelFocus();
+                    saveState();
                 };
                 newImageElement.src = tempCanvas.toDataURL();
             }
@@ -656,20 +787,16 @@
                 redrawActiveCanvas();
             }
 
-            // ---- FÄRGVAL ----
-            function drawColorSelect(ctx, imageObject, tolerance, forExport = false) {
+            function drawColorSelect(ctx, imageObject, tolerance) {
                 const img = imageObject.currentElement;
                 const originalCanvas = document.createElement('canvas');
-                originalCanvas.width = img.width;
-                originalCanvas.height = img.height;
+                originalCanvas.width = img.width; originalCanvas.height = img.height;
                 const originalCtx = originalCanvas.getContext('2d');
                 originalCtx.filter = buildFilterString(imageObject.filters);
                 originalCtx.drawImage(img, 0, 0);
-
                 const imageData = originalCtx.getImageData(0, 0, img.width, img.height);
                 const data = imageData.data;
                 const [targetR, targetG, targetB] = imageObject.colorSelect.color;
-
                 for (let i = 0; i < data.length; i += 4) {
                     const r = data[i], g = data[i+1], b = data[i+2];
                     const distance = Math.sqrt(Math.pow(r - targetR, 2) + Math.pow(g - targetG, 2) + Math.pow(b - targetB, 2));
@@ -693,6 +820,7 @@
                 newImageElement.onload = () => {
                     activeImage.currentElement = newImageElement;
                     cancelColorSelect();
+                    saveState();
                 };
                 newImageElement.src = tempCanvas.toDataURL();
             }
@@ -705,6 +833,68 @@
                 redrawActiveCanvas();
             }
 
+            function drawBackgroundPreview(ctx, imageObject) {
+                const tolerance = backgroundToleranceSlider.valueAsNumber;
+                const img = imageObject.currentElement;
+                const originalCanvas = document.createElement('canvas');
+                originalCanvas.width = img.width; originalCanvas.height = img.height;
+                const originalCtx = originalCanvas.getContext('2d');
+                originalCtx.drawImage(img, 0, 0);
+                const imageData = originalCtx.getImageData(0, 0, img.width, img.height);
+                const data = imageData.data;
+                const [targetR, targetG, targetB] = imageObject.background.color;
+
+                const previewImageData = ctx.createImageData(img.width, img.height);
+                const previewData = previewImageData.data;
+
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+                    const distance = Math.sqrt(Math.pow(r - targetR, 2) + Math.pow(g - targetG, 2) + Math.pow(b - targetB, 2));
+                    if (distance <= tolerance) {
+                        previewData[i] = 255; previewData[i+1] = 0; previewData[i+2] = 255; previewData[i+3] = 150; // Magenta preview
+                    } else {
+                        previewData[i] = r; previewData[i+1] = g; previewData[i+2] = b; previewData[i+3] = a;
+                    }
+                }
+                ctx.putImageData(previewImageData, 0, 0);
+            }
+
+            function applyBackgroundChange(remove) {
+                const activeImage = getActiveImage();
+                if (!activeImage || !activeImage.background.color) return;
+                const tolerance = backgroundToleranceSlider.valueAsNumber;
+                const newColor = hexToRgb(newBackgroundColorInput.value);
+
+                const img = activeImage.currentElement;
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = img.width; tempCanvas.height = img.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                tempCtx.drawImage(img, 0, 0);
+                const imageData = tempCtx.getImageData(0, 0, img.width, img.height);
+                const data = imageData.data;
+                const [targetR, targetG, targetB] = activeImage.background.color;
+
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i], g = data[i+1], b = data[i+2];
+                    const distance = Math.sqrt(Math.pow(r - targetR, 2) + Math.pow(g - targetG, 2) + Math.pow(b - targetB, 2));
+                    if (distance <= tolerance) {
+                        if (remove) {
+                            data[i+3] = 0; // Gör genomskinlig
+                        } else {
+                            data[i] = newColor.r; data[i+1] = newColor.g; data[i+2] = newColor.b;
+                        }
+                    }
+                }
+                tempCtx.putImageData(imageData, 0, 0);
+                
+                const newImageElement = new Image();
+                newImageElement.onload = () => {
+                    activeImage.currentElement = newImageElement;
+                    toggleTool('background');
+                    saveState();
+                };
+                newImageElement.src = tempCanvas.toDataURL();
+            }
 
             // ---- LASSO & URKLIPP ----
             function drawLassoPath(ctx) {
@@ -738,6 +928,7 @@
                         newImageElement.onload = () => {
                             activeImage.currentElement = newImageElement;
                             toggleTool('lasso');
+                            saveState();
                         };
                         newImageElement.src = activeImage.canvas.toDataURL();
                     } else {
@@ -770,6 +961,7 @@
                 newImageElement.onload = () => {
                     activeImage.currentElement = newImageElement;
                     toggleTool('pasting');
+                    saveState();
                 };
                 newImageElement.src = activeImage.canvas.toDataURL();
             }
@@ -807,6 +999,15 @@
                 return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
             }
 
+            function hexToRgb(hex) {
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : null;
+            }
+
             // ---- RENDERINGSFUNKTIONER ----
 
             function updateFilterControls() {
@@ -820,6 +1021,7 @@
                 document.getElementById('sepia').value = f.sepia;
                 focusBlurSlider.value = activeImage.focus.blur;
                 colorToleranceSlider.value = activeImage.colorSelect.tolerance;
+                backgroundToleranceSlider.value = activeImage.background.tolerance;
             }
             
             function render() {
@@ -863,6 +1065,7 @@
                     toolsContainer.classList.remove('hidden');
                     toolsContainer.classList.add('flex');
                     updateFilterControls();
+                    updateHistoryButtons();
                     redrawActiveCanvas();
                 } else {
                     noImageMessage.classList.remove('hidden');
