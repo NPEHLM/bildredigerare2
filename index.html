@@ -33,7 +33,7 @@
             object-fit: contain;
             border-radius: 0.5rem;
         }
-        #workspace.cropping, #workspace.lassoing, #workspace.focusing { cursor: crosshair; }
+        #workspace.cropping, #workspace.lassoing, #workspace.focusing, #workspace.color-selecting { cursor: crosshair; }
         #workspace.pasting { cursor: copy; }
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #1f2937; }
@@ -43,6 +43,13 @@
         button:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+        #selected-color-preview {
+            width: 100%;
+            height: 30px;
+            border-radius: 0.25rem;
+            border: 2px solid #4b5563;
+            background-color: #1f2937;
         }
     </style>
 </head>
@@ -78,15 +85,18 @@
                  <!-- Verktyg -->
                 <div>
                     <h3 class="text-lg font-semibold mb-3 border-b border-gray-600 pb-2 flex items-center gap-2"><i data-lucide="wand-2" class="w-5 h-5 text-gray-400"></i>Verktyg</h3>
-                    <div class="grid grid-cols-3 gap-2">
-                        <button id="crop-tool-btn" class="tool-button bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors duration-200">
-                            <i data-lucide="crop" class="w-4 h-4"></i>Beskär
+                    <div class="grid grid-cols-4 gap-2">
+                        <button id="crop-tool-btn" title="Beskär" class="tool-button bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium p-3 rounded-lg flex items-center justify-center transition-colors duration-200">
+                            <i data-lucide="crop" class="w-5 h-5"></i>
                         </button>
-                        <button id="focus-tool-btn" class="tool-button bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors duration-200">
-                           <i data-lucide="aperture" class="w-4 h-4"></i>Fokus
+                        <button id="focus-tool-btn" title="Fokus" class="tool-button bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium p-3 rounded-lg flex items-center justify-center transition-colors duration-200">
+                           <i data-lucide="aperture" class="w-5 h-5"></i>
                         </button>
-                        <button id="lasso-tool-btn" class="tool-button bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2 transition-colors duration-200">
-                           <i data-lucide="lasso-select" class="w-4 h-4"></i>Lasso
+                        <button id="lasso-tool-btn" title="Lasso" class="tool-button bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium p-3 rounded-lg flex items-center justify-center transition-colors duration-200">
+                           <i data-lucide="lasso-select" class="w-5 h-5"></i>
+                        </button>
+                         <button id="color-select-tool-btn" title="Färgval" class="tool-button bg-gray-700 hover:bg-gray-600 text-gray-300 font-medium p-3 rounded-lg flex items-center justify-center transition-colors duration-200">
+                           <i data-lucide="pipette" class="w-5 h-5"></i>
                         </button>
                     </div>
                     <!-- Dynamiska verktygskontroller -->
@@ -124,6 +134,25 @@
                             </button>
                             <button id="cut-lasso-btn" class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2">
                                 <i data-lucide="scissors" class="w-4 h-4"></i>Klipp ut
+                            </button>
+                        </div>
+                    </div>
+                    <div id="color-select-controls" class="hidden mt-4 p-3 bg-gray-700/50 rounded-lg space-y-4">
+                        <p class="text-sm text-center text-gray-300 mb-2">Klicka på en färg i bilden</p>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-300 mb-1">Vald färg</label>
+                            <div id="selected-color-preview"></div>
+                        </div>
+                        <div>
+                            <label for="color-tolerance" class="block text-sm font-medium text-gray-300 mb-1">Tolerans</label>
+                            <input type="range" id="color-tolerance" min="0" max="150" value="30" class="w-full h-2 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                        </div>
+                         <div id="color-select-actions" class="hidden grid-cols-2 gap-2">
+                             <button id="apply-color-select-btn" class="bg-green-600 hover:bg-green-700 text-white font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2">
+                                <i data-lucide="check" class="w-4 h-4"></i>Använd
+                            </button>
+                            <button id="cancel-color-select-btn" class="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-3 rounded-lg flex items-center justify-center gap-2">
+                                <i data-lucide="x" class="w-4 h-4"></i>Avbryt
                             </button>
                         </div>
                     </div>
@@ -206,9 +235,11 @@
             const cropToolBtn = document.getElementById('crop-tool-btn');
             const focusToolBtn = document.getElementById('focus-tool-btn');
             const lassoToolBtn = document.getElementById('lasso-tool-btn');
+            const colorSelectToolBtn = document.getElementById('color-select-tool-btn');
             const cropControls = document.getElementById('crop-controls');
             const focusControls = document.getElementById('focus-controls');
             const lassoControls = document.getElementById('lasso-controls');
+            const colorSelectControls = document.getElementById('color-select-controls');
             const applyCropBtn = document.getElementById('apply-crop-btn');
             const cancelCropBtn = document.getElementById('cancel-crop-btn');
             const copyLassoBtn = document.getElementById('copy-lasso-btn');
@@ -217,6 +248,11 @@
             const focusActions = document.getElementById('focus-actions');
             const applyFocusBtn = document.getElementById('apply-focus-btn');
             const cancelFocusBtn = document.getElementById('cancel-focus-btn');
+            const colorToleranceSlider = document.getElementById('color-tolerance');
+            const selectedColorPreview = document.getElementById('selected-color-preview');
+            const colorSelectActions = document.getElementById('color-select-actions');
+            const applyColorSelectBtn = document.getElementById('apply-color-select-btn');
+            const cancelColorSelectBtn = document.getElementById('cancel-color-select-btn');
             const pasteBtn = document.getElementById('paste-btn');
             const resetBtn = document.getElementById('reset-filters-btn');
             const downloadBtn = document.getElementById('download-btn');
@@ -225,14 +261,14 @@
             let appState = {
                 images: [],
                 activeImageId: null,
-                activeTool: null, // 'crop', 'focus', 'lasso', 'pasting'
+                activeTool: null, // 'crop', 'focus', 'lasso', 'pasting', 'color-select'
                 cropBox: null,
                 isCropping: false,
                 lassoPath: [],
                 isDrawingLasso: false,
                 isDrawingFocus: false,
-                clipboard: null, // { image: Image, path: Path2D }
-                pastedItem: null, // { image: Image, x: number, y: number }
+                clipboard: null,
+                pastedItem: null,
             };
 
             // ---- HÄNDELSEHANTERARE ----
@@ -253,6 +289,7 @@
             cropToolBtn.addEventListener('click', () => toggleTool('crop'));
             focusToolBtn.addEventListener('click', () => toggleTool('focus'));
             lassoToolBtn.addEventListener('click', () => toggleTool('lasso'));
+            colorSelectToolBtn.addEventListener('click', () => toggleTool('color-select'));
 
             // Verktygskontroller
             applyCropBtn.addEventListener('click', applyCrop);
@@ -262,6 +299,9 @@
             focusBlurSlider.addEventListener('input', () => redrawActiveCanvas());
             applyFocusBtn.addEventListener('click', applyFocus);
             cancelFocusBtn.addEventListener('click', cancelFocus);
+            colorToleranceSlider.addEventListener('input', () => redrawActiveCanvas());
+            applyColorSelectBtn.addEventListener('click', applyColorSelect);
+            cancelColorSelectBtn.addEventListener('click', cancelColorSelect);
             
             // Arbetsyta
             workspace.addEventListener('mousedown', handleWorkspaceMouseDown);
@@ -277,10 +317,7 @@
                 if (files.length > 0) welcomeMessage.classList.add('hidden');
                 
                 Array.from(files).forEach(file => {
-                    if (appState.images.some(img => img.name === file.name)) {
-                        alert(`Bilden "${file.name}" är redan öppen.`);
-                        return;
-                    }
+                    if (appState.images.some(img => img.name === file.name)) return;
                     const reader = new FileReader();
                     reader.onload = (event) => {
                         const img = new Image();
@@ -289,7 +326,9 @@
                             const newImage = {
                                 id: imageId, name: file.name, originalElement: img,
                                 currentElement: img, filters: getDefaultFilters(),
-                                focus: { path: [], blur: 5 }, canvas: null,
+                                focus: { path: [], blur: 5 }, 
+                                colorSelect: { color: null, tolerance: 30 },
+                                canvas: null,
                             };
                             appState.images.push(newImage);
                             createCanvasForImage(newImage);
@@ -344,6 +383,7 @@
                 if (!activeImage) return;
                 activeImage.filters = getDefaultFilters();
                 activeImage.focus = { path: [], blur: 5 };
+                activeImage.colorSelect = { color: null, tolerance: 30 };
                 activeImage.currentElement = activeImage.originalElement;
                 if (appState.activeTool) toggleTool(appState.activeTool);
                 updateCanvas(activeImage);
@@ -353,14 +393,10 @@
             function downloadActiveImage() {
                 const activeImage = getActiveImage();
                 if (!activeImage) return;
-                
-                // Använd en temporär canvas för att säkerställa att den slutgiltiga bilden ritas korrekt
                 const exportCanvas = document.createElement('canvas');
                 exportCanvas.width = activeImage.canvas.width;
                 exportCanvas.height = activeImage.canvas.height;
-                const exportCtx = exportCanvas.getContext('2d');
-                drawCanvasContent(activeImage, exportCtx, true); // Rita den slutgiltiga versionen
-
+                drawCanvasContent(activeImage, exportCanvas.getContext('2d'), true);
                 const link = document.createElement('a');
                 link.download = `redigerad-${activeImage.name}`;
                 link.href = exportCanvas.toDataURL('image/png');
@@ -378,28 +414,15 @@
             // ---- RITNINGSFUNKTIONER ----
 
             function drawCanvasContent(imageObject, ctx, forExport = false) {
-                 if (!imageObject || !ctx) return;
+                if (!imageObject || !ctx) return;
                 const img = imageObject.currentElement;
-                
                 ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-                
-                // Om fokus är applicerat (och inte en förhandsvisning)
-                if (imageObject.focus.path.length > 2 && (forExport || appState.activeTool !== 'focus')) {
-                    const blurAmount = imageObject.focus.blur;
-                    
-                    ctx.save();
-                    ctx.filter = `blur(${blurAmount}px) ${buildFilterString(imageObject.filters)}`;
-                    ctx.drawImage(img, 0, 0);
-                    ctx.restore();
 
-                    ctx.save();
-                    const path2D = createPath2D(imageObject.focus.path);
-                    ctx.clip(path2D);
-                    ctx.filter = buildFilterString(imageObject.filters);
-                    ctx.drawImage(img, 0, 0);
-                    ctx.restore();
+                if (imageObject.colorSelect.color && (forExport || appState.activeTool !== 'color-select')) {
+                    drawColorSelect(ctx, imageObject, imageObject.colorSelect.tolerance, forExport);
+                } else if (imageObject.focus.path.length > 2 && (forExport || appState.activeTool !== 'focus')) {
+                    drawFocus(ctx, imageObject, imageObject.focus.blur);
                 } else {
-                    // Standardritning
                     ctx.filter = buildFilterString(imageObject.filters);
                     ctx.drawImage(img, 0, 0);
                 }
@@ -408,14 +431,14 @@
             function redrawCanvas(imageObject) {
                 const ctx = imageObject.canvas.getContext('2d');
                 
-                // [FIX] Ny ritningslogik för att hantera förhandsvisning korrekt
                 if (appState.activeTool === 'focus' && imageObject.focus.path.length > 1) {
                     drawFocusPreview(ctx, imageObject);
+                } else if (appState.activeTool === 'color-select' && imageObject.colorSelect.color) {
+                    drawColorSelect(ctx, imageObject, colorToleranceSlider.valueAsNumber);
                 } else {
                     drawCanvasContent(imageObject, ctx);
                 }
                 
-                // Rita UI-överlägg
                 if (appState.activeTool === 'crop' && appState.cropBox) drawCropBox(ctx);
                 if (appState.activeTool === 'lasso' && appState.lassoPath.length > 0) drawLassoPath(ctx);
                 if (appState.activeTool === 'pasting' && appState.pastedItem) drawPastedItem(ctx);
@@ -445,13 +468,16 @@
                     if(btn) btn.classList.remove('active');
                     const controls = document.getElementById(`${appState.activeTool}-controls`);
                     if(controls) controls.classList.add('hidden');
-                    workspace.classList.remove('cropping', 'lassoing', 'focusing', 'pasting');
+                    workspace.classList.remove('cropping', 'lassoing', 'focusing', 'pasting', 'color-selecting');
                     appState.cropBox = null;
                     appState.lassoPath = [];
                     appState.isDrawingFocus = false;
                     appState.pastedItem = null;
                     const activeImage = getActiveImage();
-                    if(activeImage) activeImage.focus.path = [];
+                    if(activeImage) {
+                        activeImage.focus.path = [];
+                        activeImage.colorSelect.color = null;
+                    }
                 }
                 
                 appState.activeTool = null;
@@ -463,10 +489,10 @@
                     const controls = document.getElementById(`${toolName}-controls`);
                     if(controls) {
                         controls.classList.remove('hidden');
-                        if(toolName === 'lasso' || toolName === 'focus') {
+                        if(toolName === 'lasso' || (toolName === 'focus' && !appState.isDrawingFocus) || (toolName === 'color-select' && !getActiveImage()?.colorSelect.color)) {
                             controls.classList.add('hidden');
                         }
-                         if(toolName === 'focus') focusControls.classList.remove('hidden');
+                        if(toolName === 'focus' || toolName === 'color-select') controls.classList.remove('hidden');
                     }
                     workspace.classList.add(`${toolName}ing`);
                 }
@@ -523,12 +549,25 @@
                 if (appState.isDrawingFocus) {
                     appState.isDrawingFocus = false;
                     if(getActiveImage().focus.path.length > 2) focusActions.style.display = 'grid';
-                    redrawActiveCanvas(); // [FIX] Rita om för att visa sluten bana
+                    redrawActiveCanvas();
                 }
             }
 
             function handleWorkspaceClick(e) {
-                if (appState.activeTool === 'pasting' && appState.pastedItem) stampPastedItem();
+                const activeImage = getActiveImage();
+                if (!activeImage) return;
+                const pos = getMousePos(activeImage.canvas, e);
+
+                if (appState.activeTool === 'pasting' && appState.pastedItem) {
+                    stampPastedItem();
+                } else if (appState.activeTool === 'color-select') {
+                    const ctx = activeImage.canvas.getContext('2d');
+                    const pixel = ctx.getImageData(pos.x, pos.y, 1, 1).data;
+                    activeImage.colorSelect.color = [pixel[0], pixel[1], pixel[2]];
+                    selectedColorPreview.style.backgroundColor = `rgb(${pixel[0]}, ${pixel[1]}, ${pixel[2]})`;
+                    colorSelectActions.style.display = 'grid';
+                    redrawActiveCanvas();
+                }
             }
             
             // ---- BESKÄRNING ----
@@ -565,6 +604,7 @@
                 newImageElement.onload = () => {
                     activeImage.currentElement = newImageElement;
                     activeImage.focus.path = [];
+                    activeImage.colorSelect.color = null;
                     toggleTool('crop');
                     updateCanvas(activeImage);
                     render();
@@ -573,41 +613,38 @@
             }
 
             // ---- FOKUS ----
-            function drawFocusPreview(ctx, imageObject) {
-                if (!imageObject || imageObject.focus.path.length < 2) return;
-
+            function drawFocus(ctx, imageObject, blurAmount) {
                 ctx.save();
-                ctx.filter = `blur(${focusBlurSlider.valueAsNumber}px) ${buildFilterString(imageObject.filters)}`;
+                ctx.filter = `blur(${blurAmount}px) ${buildFilterString(imageObject.filters)}`;
                 ctx.drawImage(imageObject.currentElement, 0, 0);
                 ctx.restore();
-
                 ctx.save();
                 const path2D = createPath2D(imageObject.focus.path);
                 ctx.clip(path2D);
                 ctx.filter = buildFilterString(imageObject.filters);
                 ctx.drawImage(imageObject.currentElement, 0, 0);
                 ctx.restore();
+            }
 
+            function drawFocusPreview(ctx, imageObject) {
+                if (!imageObject || imageObject.focus.path.length < 2) return;
+                drawFocus(ctx, imageObject, focusBlurSlider.valueAsNumber);
                 drawPathOutline(ctx, imageObject.focus.path, !appState.isDrawingFocus);
             }
             
             function applyFocus() {
                 const activeImage = getActiveImage();
                 if (!activeImage || activeImage.focus.path.length < 3) return;
-                
                 activeImage.focus.blur = focusBlurSlider.valueAsNumber;
-                
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = activeImage.canvas.width;
+                tempCanvas.height = activeImage.canvas.height;
+                drawCanvasContent(activeImage, tempCanvas.getContext('2d'), true);
                 const newImageElement = new Image();
                 newImageElement.onload = () => {
                     activeImage.currentElement = newImageElement;
                     cancelFocus();
                 };
-                
-                // Använd en temporär canvas för att stämpla effekten
-                const tempCanvas = document.createElement('canvas');
-                tempCanvas.width = activeImage.canvas.width;
-                tempCanvas.height = activeImage.canvas.height;
-                drawCanvasContent(activeImage, tempCanvas.getContext('2d'), true);
                 newImageElement.src = tempCanvas.toDataURL();
             }
 
@@ -619,6 +656,56 @@
                 redrawActiveCanvas();
             }
 
+            // ---- FÄRGVAL ----
+            function drawColorSelect(ctx, imageObject, tolerance, forExport = false) {
+                const img = imageObject.currentElement;
+                const originalCanvas = document.createElement('canvas');
+                originalCanvas.width = img.width;
+                originalCanvas.height = img.height;
+                const originalCtx = originalCanvas.getContext('2d');
+                originalCtx.filter = buildFilterString(imageObject.filters);
+                originalCtx.drawImage(img, 0, 0);
+
+                const imageData = originalCtx.getImageData(0, 0, img.width, img.height);
+                const data = imageData.data;
+                const [targetR, targetG, targetB] = imageObject.colorSelect.color;
+
+                for (let i = 0; i < data.length; i += 4) {
+                    const r = data[i], g = data[i+1], b = data[i+2];
+                    const distance = Math.sqrt(Math.pow(r - targetR, 2) + Math.pow(g - targetG, 2) + Math.pow(b - targetB, 2));
+                    if (distance > tolerance) {
+                        const gray = r * 0.299 + g * 0.587 + b * 0.114;
+                        data[i] = data[i+1] = data[i+2] = gray;
+                    }
+                }
+                ctx.putImageData(imageData, 0, 0);
+            }
+
+            function applyColorSelect() {
+                const activeImage = getActiveImage();
+                if (!activeImage || !activeImage.colorSelect.color) return;
+                activeImage.colorSelect.tolerance = colorToleranceSlider.valueAsNumber;
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = activeImage.canvas.width;
+                tempCanvas.height = activeImage.canvas.height;
+                drawCanvasContent(activeImage, tempCanvas.getContext('2d'), true);
+                const newImageElement = new Image();
+                newImageElement.onload = () => {
+                    activeImage.currentElement = newImageElement;
+                    cancelColorSelect();
+                };
+                newImageElement.src = tempCanvas.toDataURL();
+            }
+
+            function cancelColorSelect() {
+                const activeImage = getActiveImage();
+                if (activeImage) activeImage.colorSelect.color = null;
+                colorSelectActions.style.display = 'none';
+                selectedColorPreview.style.backgroundColor = '#1f2937';
+                redrawActiveCanvas();
+            }
+
+
             // ---- LASSO & URKLIPP ----
             function drawLassoPath(ctx) {
                 drawPathOutline(ctx, appState.lassoPath, !appState.isDrawingLasso);
@@ -628,7 +715,6 @@
                 const activeImage = getActiveImage();
                 const path = appState.lassoPath;
                 if (!activeImage || path.length < 3) return;
-
                 const path2D = createPath2D(path);
                 const bounds = getPathBounds(path);
                 const tempCanvas = document.createElement('canvas');
@@ -636,14 +722,12 @@
                 const tempCtx = tempCanvas.getContext('2d');
                 tempCtx.translate(-bounds.x, -bounds.y);
                 tempCtx.clip(path2D);
-                drawCanvasContent(activeImage, tempCtx); // Rita innehållet till temp-canvas
-
+                drawCanvasContent(activeImage, tempCtx);
                 const clippedImage = new Image();
                 clippedImage.onload = () => {
                     appState.clipboard = { image: clippedImage, path: path2D };
                     pasteBtn.disabled = false;
                     lucide.createIcons();
-
                     if (isCut) {
                         const mainCtx = activeImage.canvas.getContext('2d');
                         mainCtx.save();
@@ -666,10 +750,7 @@
             function enterPastingMode() {
                 if (!appState.clipboard) return;
                 toggleTool('pasting');
-                appState.pastedItem = {
-                    image: appState.clipboard.image,
-                    x: -1000, y: -1000,
-                };
+                appState.pastedItem = { image: appState.clipboard.image, x: -1000, y: -1000 };
             }
 
             function drawPastedItem(ctx) {
@@ -738,6 +819,7 @@
                 document.getElementById('grayscale').value = f.grayscale;
                 document.getElementById('sepia').value = f.sepia;
                 focusBlurSlider.value = activeImage.focus.blur;
+                colorToleranceSlider.value = activeImage.colorSelect.tolerance;
             }
             
             function render() {
